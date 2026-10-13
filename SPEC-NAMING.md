@@ -1,9 +1,12 @@
 # Personal Agent Naming (PAN)
 
-**AgentMesh's naming service**, companion to the Agent Messaging specification, `SPEC.md`.
+**An open standard for naming personal agents**, sponsored by AgentMesh, and a companion to the Agent Messaging specification, `SPEC.md`.
 
-**Version:** 0.10-draft · **Date:** 2026-10-05 · **Status:** draft, one reference implementation
+**Version:** 0.10 · **Date:** 2026-10-13
 **Authors:** Jeff R Schneider <jeffrschneider@gmail.com>
+
+**Editorial, 2026-10-13:** PAN is published as an open standard sponsored by AgentMesh. The
+position paragraph in the introduction and §11, now "Implementations", say so. No normative change.
 
 **Changes from 0.9 (2026-10-05):** One addition, new §5.8, the rename
 within one registrar. §5.6 covers a name that moves to another registrar;
@@ -158,14 +161,15 @@ layer belongs to protocols like A2A and Agent Messaging), does not verify
 capability claims, does not host agents, and does not do discovery (that
 belongs to catalog/search layers like ARD).
 
-**Position within AgentMesh.** PAN is AgentMesh's naming service. It is
-normative for the mesh: features that need a named, accountable operator
-(sender provenance, admission tiers, durable and sealed rooms) resolve
-handles against a PAN registrar. The spec stays deliberately
-self-contained as a layering discipline (claiming, binding, and
-resolution are defined without reference to mesh internals, and pairing
-requires nothing but an Ed25519 key), but PAN is not maintained as an
-independent standard, and this document assumes the AgentMesh deployment.
+**Position beside Agent Messaging.** PAN is an open standard, sponsored by
+AgentMesh. An Agent Messaging deployment that offers naming (a
+deployment-defined part, SPEC.md §1.6) resolves handles against a PAN
+registrar for the features that need a named, accountable operator: sender
+provenance, admission tiers, and durable and sealed rooms. The spec is
+self-contained as a layering discipline: claiming, binding, and resolution
+are defined without reference to mesh internals, and pairing requires
+nothing but an Ed25519 key. Where this document describes a deployment, it
+describes the one AgentMesh runs.
 
 **Relationship to ANS.** The Agent Name Service (ANS) covers
 domain-anchored, PKI-backed agent identity for organizations that own a
@@ -1383,10 +1387,12 @@ does not try to.
   what (e.g. Merkle commitments / SCITT-style inclusion proofs over the §6
   chain).
 
-## 11. Reference implementation
+## 11. Implementations
 
-The reference registrar lives in the `naming/` directory of the AgentMesh
-repository and is deployed as part of the AgentMesh platform. Live and
+AgentMesh runs a registrar at `https://naming.agentmesh.ai`. It is the
+reference registrar this document cites for its defaults.
+<!-- OPEN-REGISTRAR: when the open-source registrar is released, name its public repository here. -->
+Live and
 verified end-to-end: email-tier claiming, §4.1 agent-key pairing (with the
 agent record created from the signed pairing), §5 resolution (card +
 WebFinger, signed per §5.3), and the §6 hash-chained, owner-scoped history
@@ -1414,7 +1420,7 @@ key change on re-pairing (direct and delegated) and on detachment, serves
 the current claim's changes in the card's `key_history` field, and states
 the latest change in plain words on its card page.
 
-Built, not yet deployed (2026-09-27, branch `live-revocation`): a delegated
+Built, not yet deployed (2026-09-27): a delegated
 binding may carry `revoke_previous`, recorded on the key change as
 `old_key_revoked` and served in `key_history`; the card page then says the
 previous key leaked and is revoked. Existing changes read false.
