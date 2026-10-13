@@ -1,0 +1,60 @@
+# One registrar, its database, and a mail catcher, on one machine.
+#
+#   cp .env.example .env        # then set PAN_CARD_SEED (see docs/self-hosting.md)
+#   docker compose up -d
+#
+# The registrar answers on http://localhost:8080, its claim page is at /app,
+# and the mail it sends (verification codes) lands in Mailpit at
+# http://localhost:8025 until you point PAN_SMTP_URL at a real server.
+name: pan
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: pan
+      POSTGRES_PASSWORD: ${PAN_DB_PASSWORD:-pan}
+      POSTGRES_DB: pan
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pan -d pan"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  mail:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "127.0.0.1:8025:8025"
+
+  registrar:
+    # The released image by default. PAN_REGISTRAR_IMAGE picks another one, and
+    # `docker compose build` builds this checkout instead.
+    image: ${PAN_REGISTRAR_IMAGE:-ghcr.io/agentnaming/pan-registrar:0.2.0}
+    build:
+      context: ../..
+      dockerfile: deploy/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${PAN_PORT:-8080}:8080"
+    environment:
+      DATABASE_URL: postgres://pan:${PAN_DB_PASSWORD:-pan}@db:5432/pan
+      PAN_CARD_SEED: ${PAN_CARD_SEED:?set PAN_CARD_SEED in .env; see .env.example}
+      PAN_SELF_URL: ${PAN_SELF_URL:-http://localhost:8080}
+      PAN_REGISTRAR_NAME: ${PAN_REGISTRAR_NAME:-Personal Agent Naming}
+      PAN_SMTP_URL: ${PAN_SMTP_URL:-smtp://mail:1025}
+      PAN_MAIL_FROM: ${PAN_MAIL_FROM:-names@localhost}
+      PAN_PEERS: ${PAN_PEERS:-}
+      PAN_TRUSTED_PROXIES: ${PAN_TRUSTED_PROXIES:-}
+      PAN_ALLOWED_ORIGINS: ${PAN_ALLOWED_ORIGINS:-}
+      RUST_LOG: ${RUST_LOG:-info}
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/pan-registrar", "healthcheck"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+
+volumes:
+  db:

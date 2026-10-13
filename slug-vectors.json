@@ -1,0 +1,33 @@
+{
+  "about": "One list of cases for the platform's name rule, read by services/__tests__/unit/naming-slug.test.ts and by naming/src/slug.rs's tests, so the two copies of the rule cannot drift. slug: what nameSlug / name_slug makes of the input. valid: whether the input already is a slug.",
+  "cases": [
+    { "in": "Genesis", "slug": "genesis", "valid": false },
+    { "in": "genesis", "slug": "genesis", "valid": true },
+    { "in": "Kit", "slug": "kit", "valid": false },
+    { "in": "Mojo", "slug": "mojo", "valid": false },
+    { "in": "My Cool Agent", "slug": "my-cool-agent", "valid": false },
+    { "in": "  spaced  out  ", "slug": "spaced-out", "valid": false },
+    { "in": "Stephen Smith", "slug": "stephen-smith", "valid": false },
+    { "in": "José Núñez", "slug": "jose-nunez", "valid": false },
+    { "in": "Straße", "slug": "strasse", "valid": false },
+    { "in": "Claude", "slug": "claude", "valid": false },
+    { "in": "Codex CLI", "slug": "codex-cli", "valid": false },
+    { "in": "agent.v2", "slug": "agent-v2", "valid": false },
+    { "in": "a--b", "slug": "a-b", "valid": true },
+    { "in": "--edge--", "slug": "edge", "valid": false },
+    { "in": "x", "slug": "x", "valid": true },
+    { "in": "7", "slug": "7", "valid": true },
+    { "in": "-x", "slug": "x", "valid": false },
+    { "in": "x-", "slug": "x", "valid": false },
+    { "in": "Room Manager (01a0cc)", "slug": "room-manager-01a0cc", "valid": false },
+    { "in": "help", "slug": "help", "valid": true },
+    { "in": "deploy_mgr", "slug": "deploy-mgr", "valid": false },
+    { "in": "日本語", "slug": "", "valid": false },
+    { "in": "", "slug": "", "valid": false },
+    { "in": "abcdefghijklmnopqrstuvwxyz0123456789", "slug": "abcdefghijklmnopqrstuvwxyz012345", "valid": false },
+    { "in": "abcdefghijklmnopqrstuvwxyz012345", "slug": "abcdefghijklmnopqrstuvwxyz012345", "valid": true },
+    { "in": "abcdefghijklmnopqrstuvwxyz01234-6", "slug": "abcdefghijklmnopqrstuvwxyz01234", "valid": false },
+    { "in": "UPPER", "slug": "upper", "valid": false },
+    { "in": "a@b", "slug": "a-b", "valid": false }
+  ]
+}

@@ -1,0 +1,7 @@
+# sqlx embeds the migrations at compile time and checksums them against each
+# database's _sqlx_migrations table. Their bytes must never change, so git
+# must never convert their line endings.
+migrations/*.sql -text
+*.sh text eol=lf
+*.mjs text eol=lf
+*.yml text eol=lf

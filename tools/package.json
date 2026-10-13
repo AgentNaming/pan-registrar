@@ -1,0 +1,9 @@
+{
+  "name": "pan-registrar-tools",
+  "private": true,
+  "type": "module",
+  "description": "Smoke test for a running registrar: node smoke.mjs",
+  "dependencies": {
+    "nkeys.js": "1.1.0"
+  }
+}

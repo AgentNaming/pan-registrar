@@ -1,0 +1,126 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: pan
+          POSTGRES_PASSWORD: pan
+          POSTGRES_DB: pan
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U pan -d pan" --health-interval 2s --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+      - name: Build
+        run: cargo build --locked --all-targets
+      - name: Unit tests
+        run: cargo test --locked
+      - name: Database tests
+        env:
+          PAN_DB_TESTS: "1"
+          PAN_TEST_DATABASE_URL: postgres://pan:pan@localhost:5432/pan
+        run: cargo test --locked -- --ignored --test-threads=1
+
+  conformance:
+    name: conformance (two registrars)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: pan
+          POSTGRES_PASSWORD: pan
+          POSTGRES_DB: pan
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U pan -d pan" --health-interval 2s --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+      - name: Build
+        run: cargo build --locked
+      - name: Two registrars that peer with each other
+        run: |
+          set -euo pipefail
+          PGPASSWORD=pan psql -h localhost -U pan -d pan -c "CREATE DATABASE registrar_a" -c "CREATE DATABASE registrar_b"
+          SEED_A=$(./target/debug/pan-registrar keygen 2>/dev/null | cut -d= -f2)
+          SEED_B=$(./target/debug/pan-registrar keygen 2>/dev/null | cut -d= -f2)
+          common="PAN_DELEGATE_SECRET=testsecret PAN_DELEGATE_PARTNER=testpartner PAN_REHOME_MAX_PER_HOUR=100000 BIND_ADDR=127.0.0.1"
+          env $common PORT=18081 DATABASE_URL=postgres://pan:pan@localhost:5432/registrar_a PAN_CARD_SEED="$SEED_A" \
+            PAN_SELF_URL=http://localhost:18081 PAN_PEERS=http://localhost:18082 \
+            ./target/debug/pan-registrar > registrar-a.log 2>&1 &
+          env $common PORT=18082 DATABASE_URL=postgres://pan:pan@localhost:5432/registrar_b PAN_CARD_SEED="$SEED_B" \
+            PAN_SELF_URL=http://localhost:18082 PAN_PEERS=http://localhost:18081,http://127.0.0.1:18089 \
+            ./target/debug/pan-registrar > registrar-b.log 2>&1 &
+          for port in 18081 18082; do
+            for i in $(seq 1 60); do curl -fs "http://localhost:$port/healthz" >/dev/null && break; sleep 1; done
+            curl -fs "http://localhost:$port/healthz"
+          done
+      - name: Conformance tests
+        working-directory: conformance
+        env:
+          REGISTRAR_A: http://localhost:18081
+          REGISTRAR_B: http://localhost:18082
+          REGISTRAR_TEST_PEER: http://127.0.0.1:18089
+        run: npm ci --no-audit --no-fund && node run.mjs
+      - name: Registrar logs, on failure
+        if: failure()
+        run: tail -n 100 registrar-a.log registrar-b.log
+
+  image:
+    name: image and Compose smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build the image
+        run: docker build -f deploy/Dockerfile -t pan-registrar:ci .
+      - name: Start the Compose setup with it
+        working-directory: deploy/compose
+        run: |
+          set -euo pipefail
+          SEED=$(docker run --rm pan-registrar:ci keygen 2>/dev/null | cut -d= -f2)
+          printf 'PAN_CARD_SEED=%s\nPAN_REGISTRAR_IMAGE=pan-registrar:ci\n' "$SEED" > .env
+          docker compose up -d --wait --wait-timeout 180
+      - name: Claim, pair, resolve, WebFinger
+        working-directory: tools
+        run: npm ci --no-audit --no-fund && node smoke.mjs http://localhost:8080 http://localhost:8025
+      - name: Logs, on failure
+        if: failure()
+        working-directory: deploy/compose
+        run: docker compose logs --tail 200

@@ -1,0 +1,56 @@
+# Two registrars that name each other as peers, for re-homing a name from one
+# to the other (SPEC-NAMING §5.6) and for the conformance suite.
+#
+# Peers know each other by public origin, so both registrars use the host's
+# network and answer on localhost:18081 and localhost:18082 (Linux, or Docker
+# Desktop with host networking turned on):
+#
+#   export PAN_CARD_SEED_A=… PAN_CARD_SEED_B=…   # docker run --rm <image> keygen, twice
+#   docker compose -f two-registrars.yml up -d --build
+#   cd ../../conformance && npm ci && \
+#     REGISTRAR_A=http://localhost:18081 REGISTRAR_B=http://localhost:18082 \
+#     REGISTRAR_TEST_PEER=http://127.0.0.1:18089 node run.mjs
+#
+# Test settings only: a known witnessing secret and no rate limit on re-homing.
+# Do not run this on a machine other people can reach.
+name: pan-pair
+x-registrar: &registrar
+  image: ${PAN_REGISTRAR_IMAGE:-ghcr.io/agentnaming/pan-registrar:0.2.0}
+  build:
+    context: ../..
+    dockerfile: deploy/Dockerfile
+  network_mode: host
+services:
+  db:
+    image: postgres:17-alpine
+    environment: { POSTGRES_USER: pan, POSTGRES_PASSWORD: pan, POSTGRES_DB: pan }
+    ports: ["127.0.0.1:15432:5432"]
+    volumes:
+      - ./two-registrars-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U pan -d pan"], interval: 2s, retries: 30 }
+  registrar-a:
+    <<: *registrar
+    depends_on: { db: { condition: service_healthy } }
+    environment:
+      PORT: "18081"
+      BIND_ADDR: 127.0.0.1
+      DATABASE_URL: postgres://pan:pan@127.0.0.1:15432/registrar_a
+      PAN_CARD_SEED: ${PAN_CARD_SEED_A:?set PAN_CARD_SEED_A}
+      PAN_SELF_URL: http://localhost:18081
+      PAN_PEERS: http://localhost:18082
+      PAN_DELEGATE_SECRET: testsecret
+      PAN_DELEGATE_PARTNER: testpartner
+      PAN_REHOME_MAX_PER_HOUR: "100000"
+  registrar-b:
+    <<: *registrar
+    depends_on: { db: { condition: service_healthy } }
+    environment:
+      PORT: "18082"
+      BIND_ADDR: 127.0.0.1
+      DATABASE_URL: postgres://pan:pan@127.0.0.1:15432/registrar_b
+      PAN_CARD_SEED: ${PAN_CARD_SEED_B:?set PAN_CARD_SEED_B}
+      PAN_SELF_URL: http://localhost:18082
+      PAN_PEERS: http://localhost:18081,http://127.0.0.1:18089
+      PAN_DELEGATE_SECRET: testsecret
+      PAN_DELEGATE_PARTNER: testpartner
+      PAN_REHOME_MAX_PER_HOUR: "100000"

@@ -1,0 +1,64 @@
+[package]
+name = "pan-registrar"
+version = "0.2.0"
+edition = "2021"
+description = "The Personal Agent Naming registrar: claim a handle anchored to an email, bind it to an agent key, resolve it to a signed card. See SPEC-NAMING.md."
+license = "Apache-2.0"
+
+[dependencies]
+# Ed25519 keys in the nkeys encoding, the form agent ids and card signing keys
+# take. Canonical JSON is the registrar's own (registrar.rs).
+nkeys = "0.4"
+# Codes and tokens come straight from the operating system's random source.
+getrandom = "0.3"
+# ECMAScript number formatting, for RFC 8785 canonical JSON.
+ryu-js = "1"
+# Outbound mail over SMTP, beside Resend and the development console.
+lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "hostname", "tokio1-rustls-tls"] }
+
+# HTTP server
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+
+# Postgres. Runtime queries only (no compile-time DB dependency): the repo
+# must build without a database present.
+sqlx = { version = "0.9", default-features = false, features = [
+    "runtime-tokio",
+    "tls-rustls",
+    "postgres",
+    "json",
+    "chrono",
+    "uuid",
+    "migrate",
+    "macros",
+] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Spec page rendering
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
+
+# Transparency log chain + pairing signatures + outbound email
+sha2 = "0.10"
+base64 = "0.22"
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json", "http2"] }
+
+# Misc
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+log = "0.4"
+env_logger = "0.11"
+postgresql_embedded = "0.20.2"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
+# This service does arithmetic on caller-supplied integers (check-in
+# timestamps, limits). The individual sites are checked explicitly, but a
+# wrapped add is never the behavior anyone wants here, and the cost is noise
+# next to a Postgres round trip.
+overflow-checks = true

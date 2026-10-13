@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Get a name · {{REGISTRAR_NAME}}</title>
+<link rel="icon" href="/favicon.svg">
+<style>
+  :root { --bg:#ffffff; --fg:#14211f; --dim:#4f5f5c; --line:#dcd8cf; --panel:#f6f4ef; --accent:#0a5e49; --warn:#a3261b; color-scheme: light; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#10191c; --fg:#e9f0ee; --dim:#a9b8b4; --line:#2a3b40; --panel:#16232a; --accent:#5fd3b0; --warn:#ff8a7a; color-scheme: dark; } }
+  body { background:var(--bg); color:var(--fg); font:16px/1.6 system-ui, sans-serif; margin:0; padding:32px 16px; }
+  main { max-width:36rem; margin:0 auto; display:grid; gap:20px; }
+  h1 { font-size:1.5rem; margin:0; }
+  h2 { font-size:1.1rem; margin:0 0 8px; }
+  p { margin:0 0 10px; color:var(--dim); }
+  section { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:18px 20px; }
+  label { display:block; font-weight:600; margin:10px 0 4px; }
+  input { width:100%; box-sizing:border-box; font:inherit; padding:9px 11px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--fg); }
+  button { font:inherit; font-weight:600; margin-top:12px; padding:9px 16px; border:0; border-radius:8px; background:var(--accent); color:var(--bg); cursor:pointer; }
+  button.quiet { background:transparent; color:var(--accent); border:1px solid var(--line); margin-left:6px; }
+  code, pre { font-family:ui-monospace, monospace; font-size:.9rem; }
+  pre { white-space:pre-wrap; word-break:break-all; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:10px 12px; margin:8px 0 0; }
+  ul { padding:0; margin:0; list-style:none; display:grid; gap:10px; }
+  li { border:1px solid var(--line); border-radius:8px; padding:10px 12px; background:var(--bg); }
+  .msg { min-height:1.4em; font-size:.95rem; }
+  .err { color:var(--warn); }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Get a name for your agent</h1>
+    <p>{{REGISTRAR_NAME}} gives your agent a public name on the email address you already have, such as
+      <code>Helper.you@example.com</code>, binds it to the agent's key, and answers lookups with a signed card.</p>
+  </header>
+
+  <section id="s-email">
+    <h2>1. Prove your email</h2>
+    <p>The names you claim live on this address. We send it a six-digit code.</p>
+    <label for="email">Email</label>
+    <input id="email" type="email" autocomplete="email" placeholder="you@example.com">
+    <button id="send">Send the code</button>
+    <div id="code-box" hidden>
+      <label for="code">Code</label>
+      <input id="code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456">
+      <button id="verify">Verify</button>
+    </div>
+    <p class="msg" id="m-email"></p>
+  </section>
+
+  <section id="s-names" hidden>
+    <h2>2. Your names</h2>
+    <p id="who"></p>
+    <ul id="list"></ul>
+    <label for="name">A new name</label>
+    <input id="name" placeholder="Helper">
+    <div id="op-box" hidden>
+      <label for="op">Your public display name</label>
+      <input id="op" placeholder="Ann Example">
+      <p>Shown on your names' cards as their operator. Required once.</p>
+    </div>
+    <button id="claim">Claim it</button>
+    <button id="signout" class="quiet">Sign out</button>
+    <p class="msg" id="m-names"></p>
+  </section>
+
+  <section id="s-pair" hidden>
+    <h2>3. Connect an agent</h2>
+    <p>Pairing binds <strong id="pair-handle"></strong> to your agent's key. The code works once, for ten
+      minutes. Your agent proves it holds its key by signing this text:</p>
+    <pre id="pair-text"></pre>
+    <p>and sending the signature to this registrar:</p>
+    <pre id="pair-call"></pre>
+    <p>Agent software that supports Personal Agent Naming does this when you give it the code.</p>
+    <p class="msg" id="m-pair"></p>
+  </section>
+</main>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var token = null, email = '';
+  try { token = sessionStorage.getItem('pan-token'); email = sessionStorage.getItem('pan-email') || ''; } catch (e) {}
+
+  function say(id, text, bad) { var el = $(id); el.textContent = text || ''; el.className = 'msg' + (bad ? ' err' : ''); }
+  function call(path, body, auth) {
+    var opts = { method: body ? 'POST' : 'GET', headers: {} };
+    if (body) { opts.headers['content-type'] = 'application/json'; opts.body = JSON.stringify(body); }
+    if (auth && token) opts.headers.authorization = 'Bearer ' + token;
+    return fetch(path, opts).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (!r.ok || j.ok === false) throw new Error(j.error || ('the registrar answered ' + r.status));
+        return j;
+      });
+    });
+  }
+
+  $('send').onclick = function () {
+    email = $('email').value.trim();
+    if (!email) return say('m-email', 'Enter your email first.', true);
+    say('m-email', 'Sending…');
+    call('/api/handles/start', { email: email }).then(function (j) {
+      $('code-box').hidden = false;
+      say('m-email', j.delivery === 'console'
+        ? 'This registrar has no mail provider set up, so the code is in its log.'
+        : 'Check your inbox for the code.');
+      $('code').focus();
+    }).catch(function (e) { say('m-email', e.message, true); });
+  };
+
+  $('verify').onclick = function () {
+    call('/api/handles/verify', { email: email, code: $('code').value.trim() }).then(function (j) {
+      token = j.token;
+      try { sessionStorage.setItem('pan-token', token); sessionStorage.setItem('pan-email', email); } catch (e) {}
+      say('m-email', '');
+      showNames();
+    }).catch(function (e) { say('m-email', e.message, true); });
+  };
+
+  function showNames() {
+    $('s-email').hidden = true; $('s-names').hidden = false;
+    $('who').textContent = 'Signed in as ' + email + '.';
+    call('/api/handles/mine', null, true).then(function (j) {
+      var list = $('list'); list.textContent = '';
+      var live = (j.handles || []).filter(function (h) { return !h.released_at; });
+      $('op-box').hidden = live.length > 0;
+      if (!live.length) { var li = document.createElement('li'); li.textContent = 'No names yet.'; list.appendChild(li); }
+      live.forEach(function (h) {
+        var li = document.createElement('li');
+        var a = document.createElement('a'); a.href = '/a/' + encodeURIComponent(h.handle); a.textContent = h.handle;
+        li.appendChild(a);
+        li.appendChild(document.createTextNode(h.bind_method ? ' · connected' : ' · not connected yet'));
+        var pair = document.createElement('button'); pair.className = 'quiet'; pair.textContent = h.bind_method ? 'Connect a new key' : 'Connect an agent';
+        pair.onclick = function () { startPair(h.handle); };
+        var rel = document.createElement('button'); rel.className = 'quiet'; rel.textContent = 'Release';
+        rel.onclick = function () { release(h.handle); };
+        li.appendChild(document.createElement('br')); li.appendChild(pair); li.appendChild(rel);
+        list.appendChild(li);
+      });
+    }).catch(function (e) {
+      if (/session/i.test(e.message)) return signOut();
+      say('m-names', e.message, true);
+    });
+  }
+
+  $('claim').onclick = function () {
+    var body = { name: $('name').value.trim() };
+    if (!$('op-box').hidden) body.operator_name = $('op').value.trim();
+    call('/api/handles/claim', body, true).then(function (j) {
+      say('m-names', 'Claimed ' + j.handle + '.'); $('name').value = ''; showNames(); startPair(j.handle);
+    }).catch(function (e) { say('m-names', e.message, true); });
+  };
+
+  function startPair(handle) {
+    call('/api/pair/start', { handle: handle }, true).then(function (j) {
+      $('s-pair').hidden = false;
+      $('pair-handle').textContent = handle;
+      $('pair-text').textContent = 'pan-pair-v1:' + j.code + ':<your agent id>';
+      $('pair-call').textContent = 'POST ' + location.origin + '/api/pair/complete\n{ "code": "' + j.code +
+        '", "agent_id": "<your agent id>", "signature": "<the Ed25519 signature, standard base64>" }';
+      say('m-pair', 'Pairing code ' + j.code + ', valid until ' + new Date(j.expires_at).toLocaleTimeString() + '.');
+    }).catch(function (e) { say('m-names', e.message, true); });
+  }
+
+  function release(handle) {
+    // Confirmation is a second press, on the page itself.
+    var sure = $('m-names');
+    if (sure.dataset.pending !== handle) {
+      sure.dataset.pending = handle;
+      return say('m-names', 'Releasing ' + handle + ' cannot be undone, and the name is held for 90 days. Press Release again to confirm.', true);
+    }
+    sure.dataset.pending = '';
+    call('/api/handles/release', { handle: handle }, true).then(function () {
+      say('m-names', 'Released ' + handle + '.'); showNames();
+    }).catch(function (e) { say('m-names', e.message, true); });
+  }
+
+  function signOut() {
+    token = null; try { sessionStorage.removeItem('pan-token'); } catch (e) {}
+    $('s-names').hidden = true; $('s-pair').hidden = true; $('s-email').hidden = false; $('code-box').hidden = true;
+  }
+  $('signout').onclick = signOut;
+
+  if (token) showNames();
+})();
+</script>
+</body>
+</html>
