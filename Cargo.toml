@@ -1,6 +1,6 @@
 [package]
 name = "pan-registrar"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 description = "The Personal Agent Naming registrar: claim a handle anchored to an email, bind it to an agent key, resolve it to a signed card. See SPEC-NAMING.md."
 license = "Apache-2.0"

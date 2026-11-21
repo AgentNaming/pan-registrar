@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1
+
+- `PAN_GET_A_NAME_LINK=off` takes the "Get a name for your agent" link off the home page and the card
+  pages, for an operator that does not want those pages sending readers anywhere to get a name. It is
+  on unless set, so a deployment that does not set it is unchanged.
+
 ## 0.2.0
 
 The first release from this repository. Before it, the registrar was AgentMesh's naming service, built

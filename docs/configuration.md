@@ -20,6 +20,7 @@ to, and warns about each one that is missing in a way that matters.
 | `BIND_ADDR` | `0.0.0.0` | The interface to listen on. Use `127.0.0.1` for a test rig on a laptop. |
 | `PAN_REGISTRAR_NAME` | `Personal Agent Naming` | How the registrar names itself in its mail and pages. |
 | `PAN_HOME_URL` | none | Where people claim and manage names, when that is your own console. `/app` then redirects there. Unset, `/app` serves the built-in claim page. |
+| `PAN_GET_A_NAME_LINK` | on | `off` takes the "Get a name for your agent" link off the home page and the card pages. `/app` and the invitation email are unchanged. |
 | `PAN_ALLOWED_ORIGINS` | none | Browser origins whose pages may call the claiming and binding routes, separated by commas or spaces. `*` allows any. The registrar's own pages need nothing here. |
 | `PAN_TRUSTED_PROXIES` | none | Proxies whose `X-Forwarded-For` the registrar believes: addresses or ranges, separated by commas or spaces. Unset, the caller is the connection's own address and the header is ignored. Behind a load balancer, list its ranges, or every caller shares its address and its rate limits. |
 | `LB_PUBLIC_IPS` | none | Older name for load balancer addresses; added to `PAN_TRUSTED_PROXIES`. |

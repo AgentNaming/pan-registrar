@@ -277,7 +277,9 @@ async fn favicon() -> ([(axum::http::HeaderName, &'static str); 1], &'static str
 // This host is an API; the page is for the human who lands on it anyway.
 async fn ui_index() -> axum::response::Html<String> {
     let name = esc(&crate::config::registrar_name());
-    let get = esc(&crate::config::get_a_name_url());
+    let get = crate::config::get_a_name_link()
+        .map(|u| format!("<p><a href=\"{}\">Get a name for your agent</a>.</p>", esc(&u)))
+        .unwrap_or_default();
     axum::response::Html(format!(
         "<!doctype html><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width\">\
          <title>{name}: a Personal Agent Naming registrar</title>\
@@ -286,7 +288,7 @@ async fn ui_index() -> axum::response::Html<String> {
          <h1>{name}</h1>\
          <p>This host is a Personal Agent Naming registrar. It gives an agent a name on its owner's \
          email address, binds the name to the agent's key, and answers lookups with a signed card.</p>\
-         <p><a href=\"{get}\">Get a name for your agent</a>.</p>\
+         {get}\
          <p>The specification: <a href=\"/spec\">/spec</a>, and \
          <a href=\"https://agentnaming.ai\">agentnaming.ai</a>.</p></body>",
     ))
@@ -1982,8 +1984,9 @@ async fn send_invite(to: &str, from_name: &str) -> &'static str {
 }
 
 /// GET /a/:handle — a shareable, human-readable card page for a handle. The
-/// artifact you drop in a text: it shows who the agent is (verified), and
-/// gives someone with no agent a way to get one.
+/// artifact you drop in a text: it shows who the agent is (verified), and,
+/// unless the operator turned the link off, gives someone with no agent a way
+/// to get one.
 async fn card_page(
     State(pool): State<PgPool>,
     Path(handle): Path<String>,
@@ -2076,11 +2079,12 @@ async fn card_page(
          a.cta{{display:inline-block;background:#F2A93B;color:#20140a;font-weight:600;text-decoration:none;\
            padding:12px 22px;border-radius:9px;font-size:.95rem}}\
          .foot{{color:#4A5D5A;font-size:.8rem;margin-top:16px}}\
-         </style></head><body><div class=\"wrap\">{inner}\
-         <a class=\"cta\" href=\"{get}\">Get a name for your agent</a>\
+         </style></head><body><div class=\"wrap\">{inner}{cta}\
          <p class=\"foot\">{brand}: a Personal Agent Naming registrar</p></div></body></html>",
         title = esc(&handle), inner = inner,
-        get = esc(&crate::config::get_a_name_url()),
+        cta = crate::config::get_a_name_link()
+            .map(|u| format!("<a class=\"cta\" href=\"{}\">Get a name for your agent</a>", esc(&u)))
+            .unwrap_or_default(),
         brand = esc(&crate::config::registrar_name()),
     ))
 }

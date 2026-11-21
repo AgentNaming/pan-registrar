@@ -43,6 +43,24 @@ pub fn get_a_name_url() -> String {
     }
 }
 
+/// The "Get a name for your agent" link on the home page and the card pages,
+/// pointing at `get_a_name_url()`. `PAN_GET_A_NAME_LINK=off` takes it off
+/// those pages, for an operator that does not want them sending readers
+/// anywhere to get a name. It changes nothing else: `/app` and the invitation
+/// email behave as they did.
+pub fn get_a_name_link() -> Option<String> {
+    get_a_name_link_shown(var("PAN_GET_A_NAME_LINK").as_deref()).then(get_a_name_url)
+}
+
+/// Whether a `PAN_GET_A_NAME_LINK` value leaves the link on. Only an explicit
+/// off removes it, so a deployment that never heard of the setting keeps it.
+fn get_a_name_link_shown(setting: Option<&str>) -> bool {
+    !matches!(
+        setting.map(str::to_ascii_lowercase).as_deref(),
+        Some("0" | "false" | "no" | "off")
+    )
+}
+
 /// `POST /api/invite` is a growth feature some operators offer: a signed-in
 /// owner asks the registrar to email someone an invitation. It is not part of
 /// SPEC-NAMING, so it is off unless the operator turns it on.
@@ -131,6 +149,9 @@ pub fn report() {
         Some(u) => log::info!("[pan] people manage their names at {u}; /app redirects there"),
         None => log::info!("[pan] /app serves this registrar's own claim page"),
     }
+    if get_a_name_link().is_none() {
+        log::info!("[pan] PAN_GET_A_NAME_LINK is off: the home page and card pages carry no get-a-name link");
+    }
     if allowed_origins().is_none() {
         log::info!(
             "[pan] PAN_ALLOWED_ORIGINS is not set: no other origin's pages may call the state-changing \
@@ -171,5 +192,16 @@ mod tests {
         assert!(Cidr::parse("10.0.0.0/33").is_none());
         assert!(Cidr::parse("not-an-ip").is_none());
         assert_eq!(parse_cidrs("10.0.0.0/8, 198.51.100.0/24  junk").len(), 2);
+    }
+
+    #[test]
+    fn the_get_a_name_link_goes_only_when_turned_off() {
+        assert!(get_a_name_link_shown(None));
+        for on in ["on", "1", "true", "yes", "anything"] {
+            assert!(get_a_name_link_shown(Some(on)), "{on} should leave the link on");
+        }
+        for off in ["off", "OFF", "Off", "0", "false", "no"] {
+            assert!(!get_a_name_link_shown(Some(off)), "{off} should take the link off");
+        }
     }
 }
